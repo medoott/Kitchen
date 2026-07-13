@@ -43,8 +43,9 @@ async function getAccessToken(): Promise<{ token: string; baseUrl: string }> {
   return { token: data.access_token, baseUrl };
 }
 
-export async function createPayPalOrder(amount: number, orderNumber: string): Promise<{ id: string; approvalUrl: string }> {
+export async function createPayPalOrder(amount: number, orderNumber: string, orderId?: string): Promise<{ id: string; approvalUrl: string }> {
   const { token: accessToken, baseUrl } = await getAccessToken();
+  const publicUrl = process.env.PUBLIC_URL || 'https://inka.kitchenasty.com';
 
   const res = await fetch(`${baseUrl}/v2/checkout/orders`, {
     method: 'POST',
@@ -54,6 +55,12 @@ export async function createPayPalOrder(amount: number, orderNumber: string): Pr
     },
     body: JSON.stringify({
       intent: 'CAPTURE',
+      application_context: {
+        brand_name: 'KitchenAsty',
+        user_action: 'PAY_NOW',
+        return_url: orderId ? `${publicUrl}/order/${orderId}?paypal=approved` : `${publicUrl}/`,
+        cancel_url: `${publicUrl}/checkout`,
+      },
       purchase_units: [{
         reference_id: orderNumber,
         amount: {

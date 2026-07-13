@@ -227,6 +227,7 @@ const paymentSettingsSchema = z.object({
   paypalClientSecret: z.string().optional(),
   paypalSandbox: z.boolean().optional(),
   cashEnabled: z.boolean().optional(),
+  cardEnabled: z.boolean().optional(),
 });
 
 const reviewSettingsSchema = z.object({

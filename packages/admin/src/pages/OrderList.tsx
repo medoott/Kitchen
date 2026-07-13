@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
   OUT_FOR_DELIVERY: 'bg-indigo-100 text-indigo-800',
   DELIVERED: 'bg-green-200 text-green-900',
   PICKED_UP: 'bg-green-200 text-green-900',
+  SETTLED: 'bg-emerald-200 text-emerald-900',
   CANCELLED: 'bg-red-100 text-red-800',
 };
 
@@ -87,6 +88,7 @@ export default function OrderList() {
           <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
           <option value="DELIVERED">Delivered</option>
           <option value="PICKED_UP">Picked Up</option>
+          <option value="SETTLED">Settled</option>
           <option value="CANCELLED">Cancelled</option>
         </select>
         <select

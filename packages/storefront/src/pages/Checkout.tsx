@@ -25,6 +25,12 @@ export default function Checkout() {
   const [couponCode, setCouponCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [enabledMethods, setEnabledMethods] = useState<{
+    CASH: boolean;
+    CARD: boolean;
+    STRIPE: boolean;
+    PAYPAL: boolean;
+  } | null>(null);
 
   // Guest checkout fields
   const [guestName, setGuestName] = useState('');
@@ -38,6 +44,31 @@ export default function Checkout() {
   // Busy mode
   const [isBusy, setIsBusy] = useState(false);
   const [busyMessage, setBusyMessage] = useState('');
+
+  // Enabled payment methods (from admin settings)
+  useEffect(() => {
+    fetch('/api/payments/methods')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data.data?.methods) setEnabledMethods(data.data.methods);
+      })
+      .catch(() => {
+        /* ignore — fall back to all enabled */
+      });
+  }, []);
+
+  const paymentOptions = [
+    { key: 'cash' as const, label: t('checkout.cashOnDelivery'), sub: 'Pay at the counter', enabled: enabledMethods?.CASH ?? true },
+    { key: 'stripe' as const, label: t('checkout.creditCard'), sub: 'Card via Stripe', enabled: enabledMethods?.STRIPE ?? true },
+    { key: 'paypal' as const, label: 'PayPal', sub: 'Pay with your PayPal account', enabled: enabledMethods?.PAYPAL ?? true },
+  ].filter((o) => o.enabled);
+
+  // Keep the selected method within what's actually enabled.
+  useEffect(() => {
+    if (enabledMethods && !paymentOptions.some((o) => o.key === paymentMethod)) {
+      setPaymentMethod((paymentOptions[0]?.key ?? 'cash') as typeof paymentMethod);
+    }
+  }, [enabledMethods, paymentOptions, paymentMethod]);
 
   // Loyalty points
   const [loyaltyBalance, setLoyaltyBalance] = useState(0);
@@ -110,7 +141,7 @@ export default function Checkout() {
 
       const body: Record<string, unknown> = {
         orderType: orderType.toUpperCase(),
-        paymentMethod,
+        paymentMethod: paymentMethod.toUpperCase(),
         items: orderItems,
         comment: comment || undefined,
         scheduledAt: scheduledAt || undefined,
@@ -163,6 +194,20 @@ export default function Checkout() {
         // user backs out of the hosted page, they return to a still-loaded
         // checkout and can retry without re-typing everything.
         window.location.href = sessData.data.url as string;
+        return;
+      }
+
+      if (paymentMethod === 'paypal') {
+        const ppRes = await fetch('/api/payments/paypal/create', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ orderId }),
+        });
+        const ppData = await ppRes.json();
+        if (!ppRes.ok || !ppData.data?.approvalUrl) {
+          throw new Error(ppData.error || 'Failed to start PayPal payment');
+        }
+        window.location.href = ppData.data.approvalUrl as string;
         return;
       }
 
@@ -372,50 +417,34 @@ export default function Checkout() {
           {/* Payment method */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('checkout.paymentMethod')}</h2>
-            <div className="space-y-2">
-              <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                paymentMethod === 'cash'
-                  ? 'border-primary-600 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'cash'}
-                  onChange={() => setPaymentMethod('cash')}
-                  className="accent-primary-600"
-                />
-                <span className="text-sm font-medium text-gray-900">{t('checkout.cashOnDelivery')}</span>
-              </label>
-              <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                paymentMethod === 'stripe'
-                  ? 'border-primary-600 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'stripe'}
-                  onChange={() => setPaymentMethod('stripe')}
-                  className="accent-primary-600"
-                />
-                <span className="text-sm font-medium text-gray-900">{t('checkout.creditCard')}</span>
-              </label>
-              <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                paymentMethod === 'paypal'
-                  ? 'border-primary-600 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'paypal'}
-                  onChange={() => setPaymentMethod('paypal')}
-                  className="accent-primary-600"
-                />
-                <span className="text-sm font-medium text-gray-900">PayPal</span>
-              </label>
-            </div>
+            {paymentOptions.length === 0 ? (
+              <p className="text-sm text-gray-500">No payment methods are currently enabled. Please try again later.</p>
+            ) : (
+              <div className="space-y-2">
+                {paymentOptions.map((opt) => (
+                  <label
+                    key={opt.key}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      paymentMethod === opt.key
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      checked={paymentMethod === opt.key}
+                      onChange={() => setPaymentMethod(opt.key)}
+                      className="accent-primary-600"
+                    />
+                    <span className="flex-1">
+                      <span className="block text-sm font-medium text-gray-900">{opt.label}</span>
+                      {opt.sub && <span className="block text-xs text-gray-500">{opt.sub}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Guest info or login prompt */}

@@ -198,7 +198,8 @@
     "readyForPickup": "Pronto",
     "pickedUp": "Ritirato",
     "cancelled": "Annullato",
-    "cancelledMessage": "Questo ordine è stato annullato."
+    "cancelledMessage": "Questo ordine è stato annullato.",
+    "settled": "Pagato / Saldato"
   },
   "reservations": {
     "title": "Prenotazione Tavolo",

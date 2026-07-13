@@ -16,11 +16,13 @@ CREATE TYPE "PaymentStatus" AS ENUM (
   'REFUNDED',
   'PARTIALLY_REFUNDED'
 );
+ALTER TABLE "payments" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "payments" ALTER COLUMN "status" TYPE "PaymentStatus"
   USING CASE "status"::text
     WHEN 'COMPLETED' THEN 'PAID'::"PaymentStatus"
     ELSE "status"::text::"PaymentStatus"
   END;
+ALTER TABLE "payments" ALTER COLUMN "status" SET DEFAULT 'PENDING';
 DROP TYPE "PaymentStatus_old";
 
 -- New Payment columns

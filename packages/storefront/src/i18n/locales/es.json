@@ -198,7 +198,8 @@
     "readyForPickup": "Listo",
     "pickedUp": "Recogido",
     "cancelled": "Cancelado",
-    "cancelledMessage": "Este pedido ha sido cancelado."
+    "cancelledMessage": "Este pedido ha sido cancelado.",
+    "settled": "Pagado / Liquidado"
   },
   "reservations": {
     "title": "Reservas de Mesa",

@@ -197,6 +197,7 @@
     "delivered": "Delivered",
     "readyForPickup": "Ready",
     "pickedUp": "Picked Up",
+    "settled": "Paid / Settled",
     "cancelled": "Cancelled",
     "cancelledMessage": "This order has been cancelled."
   },

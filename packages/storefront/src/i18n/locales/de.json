@@ -198,7 +198,8 @@
     "readyForPickup": "Bereit",
     "pickedUp": "Abgeholt",
     "cancelled": "Storniert",
-    "cancelledMessage": "Diese Bestellung wurde storniert."
+    "cancelledMessage": "Diese Bestellung wurde storniert.",
+    "settled": "Bezahlt / Abgeschlossen"
   },
   "reservations": {
     "title": "Tischreservierung",

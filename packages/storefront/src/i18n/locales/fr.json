@@ -198,7 +198,8 @@
     "readyForPickup": "Prête",
     "pickedUp": "Récupérée",
     "cancelled": "Annulée",
-    "cancelledMessage": "Cette commande a été annulée."
+    "cancelledMessage": "Cette commande a été annulée.",
+    "settled": "Payé / Réglé"
   },
   "reservations": {
     "title": "Réservation de Table",

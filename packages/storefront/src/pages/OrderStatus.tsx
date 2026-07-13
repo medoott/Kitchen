@@ -52,6 +52,7 @@ export default function OrderStatus() {
     { key: 'READY', label: t('orderStatus.ready') },
     { key: 'OUT_FOR_DELIVERY', label: t('orderStatus.outForDelivery') },
     { key: 'DELIVERED', label: t('orderStatus.delivered') },
+    { key: 'SETTLED', label: t('orderStatus.settled') },
   ];
 
   const PICKUP_STEPS = [
@@ -60,6 +61,7 @@ export default function OrderStatus() {
     { key: 'PREPARING', label: t('orderStatus.preparing') },
     { key: 'READY', label: t('orderStatus.readyForPickup') },
     { key: 'PICKED_UP', label: t('orderStatus.pickedUp') },
+    { key: 'SETTLED', label: t('orderStatus.settled') },
   ];
 
   useEffect(() => {

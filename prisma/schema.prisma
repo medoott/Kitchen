@@ -346,6 +346,7 @@ enum OrderStatus {
   OUT_FOR_DELIVERY
   DELIVERED
   PICKED_UP
+  SETTLED
   CANCELLED
 }
 

@@ -3,7 +3,7 @@ import prisma from './db.js';
 import logger from './logger.js';
 
 interface AuditOptions {
-  action: 'create' | 'update' | 'delete';
+  action: string;
   entity: string;
   entityId?: string;
   details?: Record<string, unknown>;

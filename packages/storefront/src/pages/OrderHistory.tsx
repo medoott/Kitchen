@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
   OUT_FOR_DELIVERY: 'bg-indigo-100 text-indigo-800',
   DELIVERED: 'bg-green-200 text-green-900',
   PICKED_UP: 'bg-green-200 text-green-900',
+  SETTLED: 'bg-emerald-200 text-emerald-900',
   CANCELLED: 'bg-red-100 text-red-800',
 };
 

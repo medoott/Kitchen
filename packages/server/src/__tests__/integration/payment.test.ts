@@ -9,7 +9,8 @@ vi.mock('../../lib/db.js', () => {
     order: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn() },
     orderItem: { count: vi.fn() },
     menuItem: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    payment: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    payment: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    siteSettings: { findUnique: vi.fn().mockResolvedValue(null) },
     deliveryZone: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     table: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     reservation: { count: vi.fn() },
@@ -94,7 +95,7 @@ describe('Payment API - Integration Tests', () => {
 
     it('returns 409 if order already paid', async () => {
       mockedPrisma.order.findUnique.mockResolvedValue(sampleOrder as any);
-      mockedPrisma.payment.findFirst.mockResolvedValue({ id: 'pay-1', status: 'COMPLETED' } as any);
+      mockedPrisma.payment.findFirst.mockResolvedValueOnce({ id: 'pay-1', status: 'COMPLETED' } as any);
 
       const res = await request(app)
         .post('/api/payments/create-intent')

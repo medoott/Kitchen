@@ -49,6 +49,7 @@ import SettingsOrder from './pages/SettingsOrder.js';
 import SettingsReservation from './pages/SettingsReservation.js';
 import SettingsMail from './pages/SettingsMail.js';
 import SettingsPayments from './pages/SettingsPayments.js';
+import PaymentsList from './pages/PaymentsList.js';
 import SettingsReviews from './pages/SettingsReviews.js';
 import SettingsAdvanced from './pages/SettingsAdvanced.js';
 import DeveloperSettings from './pages/DeveloperSettings.js';
@@ -129,6 +130,7 @@ function AppRoutes() {
         <Route path="/settings/reservation" element={<RequireRole roles={['SUPER_ADMIN', 'MANAGER']}><SettingsReservation /></RequireRole>} />
         <Route path="/settings/mail" element={<RequireRole roles={['DEVELOPER']}><SettingsMail /></RequireRole>} />
         <Route path="/settings/payment" element={<RequireRole roles={['SUPER_ADMIN']}><SettingsPayments /></RequireRole>} />
+        <Route path="/payments" element={<RequireRole roles={['STAFF', 'MANAGER', 'SUPER_ADMIN']}><PaymentsList /></RequireRole>} />
         <Route path="/settings/review" element={<RequireRole roles={['SUPER_ADMIN', 'MANAGER']}><SettingsReviews /></RequireRole>} />
         <Route path="/settings/advanced" element={<RequireRole roles={['SUPER_ADMIN']}><SettingsAdvanced /></RequireRole>} />
         <Route path="/settings/developer" element={<RequireRole roles={['DEVELOPER']}><DeveloperSettings /></RequireRole>} />

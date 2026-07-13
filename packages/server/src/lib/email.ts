@@ -129,6 +129,7 @@ export function orderStatusEmail(order: {
     OUT_FOR_DELIVERY: 'Your order is on its way!',
     DELIVERED: 'Your order has been delivered. Enjoy!',
     PICKED_UP: 'Your order has been picked up. Enjoy!',
+    SETTLED: 'Your order is complete and payment has been settled. Thank you!',
     CANCELLED: 'Your order has been cancelled.',
   };
 

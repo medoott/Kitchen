@@ -23,6 +23,9 @@ export default function SettingsPayments() {
   // Cash
   const [cashEnabled, setCashEnabled] = useState(true);
 
+  // Card (in-person POS)
+  const [cardEnabled, setCardEnabled] = useState(false);
+
   useEffect(() => {
     fetch('/api/settings/payment', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -38,6 +41,7 @@ export default function SettingsPayments() {
           if (d.paypalClientSecret) setPaypalClientSecret(d.paypalClientSecret);
           if (d.paypalSandbox !== undefined) setPaypalSandbox(d.paypalSandbox);
           if (d.cashEnabled !== undefined) setCashEnabled(d.cashEnabled);
+          if (d.cardEnabled !== undefined) setCardEnabled(d.cardEnabled);
         }
       })
       .catch(() => {})
@@ -55,7 +59,7 @@ export default function SettingsPayments() {
         body: JSON.stringify({
           stripeEnabled, stripePublishableKey, stripeSecretKey, stripeWebhookSecret,
           paypalEnabled, paypalClientId, paypalClientSecret, paypalSandbox,
-          cashEnabled,
+          cashEnabled, cardEnabled,
         }),
       });
       const data = await res.json();
@@ -145,11 +149,28 @@ export default function SettingsPayments() {
       </div>
 
       {/* Cash */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Cash on Delivery</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Cash</h2>
+            <p className="text-sm text-gray-500">Customer pays at the counter or to the waiter. Staff confirms the payment in the POS.</p>
+          </div>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={cashEnabled} onChange={(e) => setCashEnabled(e.target.checked)} className="w-4 h-4 text-primary-600 rounded" />
+            <span className="text-sm text-gray-700">Enabled</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Card (in-person) */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Card (in-person)</h2>
+            <p className="text-sm text-gray-500">Staff take card payments on the spot via the POS. No online gateway required.</p>
+          </div>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={cardEnabled} onChange={(e) => setCardEnabled(e.target.checked)} className="w-4 h-4 text-primary-600 rounded" />
             <span className="text-sm text-gray-700">Enabled</span>
           </label>
         </div>

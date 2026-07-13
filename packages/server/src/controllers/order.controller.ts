@@ -5,6 +5,7 @@ import { emitNewOrder, emitOrderStatusUpdate, emitTableStatusUpdate, emitTableOr
 import { isPointInPolygon } from '../lib/geo.js';
 import { sendEmail, orderConfirmationEmail, orderStatusEmail } from '../lib/email.js';
 import { auditLog } from '../lib/audit.js';
+import { getCurrency } from './payment.controller.js';
 
 const orderItemOptionSchema = z.object({
   menuOptionValueId: z.string().min(1),
@@ -40,6 +41,7 @@ const createOrderSchema = z.object({
   guestPhone: z.string().optional(),
   loyaltyPointsRedeem: z.number().int().min(0).optional(),
   tableSessionToken: z.string().optional(),
+  paymentMethod: z.enum(['CASH', 'CARD', 'STRIPE', 'PAYPAL']).optional(),
 });
 
 function generateOrderNumber(): string {
@@ -56,7 +58,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { orderType, items, comment, scheduledAt, address, guestName, guestEmail, guestPhone, loyaltyPointsRedeem, tableSessionToken } = parsed.data;
+  const { orderType, items, comment, scheduledAt, address, guestName, guestEmail, guestPhone, loyaltyPointsRedeem, tableSessionToken, paymentMethod } = parsed.data;
 
   // Resolve table session (QR table ordering)
   let tableSession: { id: string; tableId: string; sessionToken: string; closedAt: Date | null; table: { locationId: string; name: string } } | null = null;
@@ -296,6 +298,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       guestPhone: customerId ? undefined : guestPhone,
       tableId: tableSession?.tableId ?? null,
       tableSessionId: tableSession?.id ?? null,
+      paymentMethod: paymentMethod ?? null,
       items: { create: orderItemsData },
     },
     include: {
@@ -303,6 +306,21 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       customer: { select: { id: true, name: true, email: true } },
     },
   });
+
+  // Cash orders are authorized at the counter — record an awaiting payment.
+  if (paymentMethod === 'CASH') {
+    const currency = await getCurrency();
+    await prisma.payment.create({
+      data: {
+        orderId: order.id,
+        method: 'CASH',
+        status: 'AWAITING_CASH_PAYMENT',
+        amount: order.total,
+        currency,
+      },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: 'AWAITING_CASH_PAYMENT' } });
+  }
 
   // Decrement stock for tracked items
   for (const item of items) {
@@ -462,6 +480,10 @@ export async function getOrder(req: Request<{ id: string }>, res: Response): Pro
           options: true,
         },
       },
+      payments: {
+        include: { confirmedBy: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
 
@@ -517,7 +539,7 @@ export async function updateOrderStatus(req: Request<{ id: string }>, res: Respo
   const { id } = req.params;
   const { status } = req.body;
 
-  const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'PICKED_UP', 'CANCELLED'];
+  const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'PICKED_UP', 'SETTLED', 'CANCELLED'];
   if (!validStatuses.includes(status)) {
     res.status(400).json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     return;
@@ -532,15 +554,22 @@ export async function updateOrderStatus(req: Request<{ id: string }>, res: Respo
     return;
   }
 
+  // If the order is collected (picked up / delivered) and already paid, move
+  // it straight to the terminal "Settled" stage.
+  let finalStatus = status;
+  if ((status === 'PICKED_UP' || status === 'DELIVERED') && order.paymentStatus === 'PAID') {
+    finalStatus = 'SETTLED';
+  }
+
   const updated = await prisma.order.update({
     where: { id },
-    data: { status },
+    data: { status: finalStatus },
     include: {
       items: { include: { options: true } },
     },
   });
 
-  auditLog(req, { action: 'update', entity: 'Order', entityId: id, details: { status, previousStatus: order.status } });
+  auditLog(req, { action: 'update', entity: 'Order', entityId: id, details: { status: finalStatus, previousStatus: order.status } });
 
   emitOrderStatusUpdate({
     id: updated.id,
@@ -553,7 +582,7 @@ export async function updateOrderStatus(req: Request<{ id: string }>, res: Respo
   // Send status update email
   const recipientEmail = order.customer?.email || order.guestEmail;
   if (recipientEmail) {
-    const emailContent = orderStatusEmail({ orderNumber: order.orderNumber, status });
+    const emailContent = orderStatusEmail({ orderNumber: order.orderNumber, status: finalStatus });
     sendEmail({ to: recipientEmail, ...emailContent }).catch(() => {});
   }
 

@@ -66,6 +66,7 @@ const navItems: NavItem[] = [
     ],
   },
   { path: '/settings', label: 'Settings', icon: '\u2699', roles: ['SUPER_ADMIN', 'MANAGER'] },
+  { path: '/payments', label: 'Payments', icon: '\uD83D\uDCB3', roles: ['STAFF', 'MANAGER', 'SUPER_ADMIN'] },
   {
     path: '/developer',
     label: 'Developer',

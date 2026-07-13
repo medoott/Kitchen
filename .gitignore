@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-*/
+build/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+coverage/
+test-results/
+playwright-report/
+.vite/
+*.tsbuildinfo
+uploads/
+.intlayer/

@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "KitchenAsty",
+    "slug": "kitchenasty",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "kitchenasty",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F97316"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kitchenasty.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F97316"
+      },
+      "package": "com.kitchenasty.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#F97316"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:3000",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
+}

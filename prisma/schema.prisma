@@ -1,0 +1,827 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// STAFF / ADMIN USERS
+// ============================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  phone     String?
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  assignedOrders Order[] @relation("AssignedStaff")
+  confirmedPayments Payment[] @relation("ConfirmedByStaff")
+  mediaAssets    MediaAsset[]
+
+  @@map("users")
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  STAFF
+  DEVELOPER
+}
+
+// ============================================================
+// CUSTOMERS
+// ============================================================
+
+model Customer {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  password       String?
+  name           String
+  phone          String?
+  isGuest        Boolean  @default(false)
+  expoPushToken  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  groupId String?
+  group   CustomerGroup? @relation(fields: [groupId], references: [id])
+
+  loyaltyPoints Int @default(0)
+
+  addresses             Address[]
+  orders                Order[]
+  reservations          Reservation[]
+  reviews               Review[]
+  loyaltyTransactions   LoyaltyTransaction[]
+  cookieConsents        CookieConsent[]
+
+  @@map("customers")
+}
+
+model CustomerGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers Customer[]
+
+  @@map("customer_groups")
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String?
+  line1      String
+  line2      String?
+  city       String
+  state      String?
+  postalCode String
+  country    String  @default("US")
+  lat        Float?
+  lng        Float?
+  isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders Order[]
+
+  @@map("addresses")
+}
+
+// ============================================================
+// LOCATIONS
+// ============================================================
+
+model Location {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  phone       String?
+  email       String?
+  address     String
+  city        String
+  state       String?
+  postalCode  String
+  country     String  @default("US")
+  lat         Float?
+  lng         Float?
+  image       String?
+  isActive    Boolean @default(true)
+
+  // Operating settings
+  deliveryEnabled   Boolean @default(true)
+  pickupEnabled     Boolean @default(true)
+  minOrderDelivery  Float   @default(0)
+  minOrderPickup    Float   @default(0)
+  deliveryLeadTime  Int     @default(30) // minutes
+  pickupLeadTime    Int     @default(15) // minutes
+
+  // Busy mode
+  isBusy       Boolean @default(false)
+  busyMessage  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff          User[]
+  categories     Category[]
+  menuItems      MenuItem[]
+  mealtimes      Mealtime[]
+  tables         Table[]
+  deliveryZones  DeliveryZone[]
+  orders         Order[]
+  reservations   Reservation[]
+  reviews        Review[]
+  operatingHours OperatingHour[]
+
+  @@map("locations")
+}
+
+model OperatingHour {
+  id         String @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int // 0=Sunday, 6=Saturday
+  openTime   String // "09:00"
+  closeTime  String // "22:00"
+  isClosed   Boolean @default(false)
+
+  @@unique([locationId, dayOfWeek])
+  @@map("operating_hours")
+}
+
+model DeliveryZone {
+  id          String @id @default(cuid())
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  name        String
+  charge      Float    @default(0)
+  minOrder    Float    @default(0)
+  // Store boundary as JSON polygon coordinates
+  boundaries  Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("delivery_zones")
+}
+
+// ============================================================
+// MENU
+// ============================================================
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  image       String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItems MenuItem[]
+
+  @@map("categories")
+}
+
+model MenuItem {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  price       Float
+  image       String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  // Stock
+  trackStock Boolean @default(false)
+  stockQty   Int     @default(0)
+
+  // Restrictions
+  orderType OrderType? // null = both
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  options    MenuOption[]
+  mealtimes  MenuItemMealtime[]
+  allergens  MenuItemAllergen[]
+  orderItems OrderItem[]
+
+  @@map("menu_items")
+}
+
+model MenuOption {
+  id          String               @id @default(cuid())
+  menuItemId  String
+  menuItem    MenuItem             @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name        String
+  displayType MenuOptionDisplayType @default(SELECT)
+  isRequired  Boolean              @default(false)
+  minSelect   Int                  @default(0)
+  maxSelect   Int                  @default(1)
+  sortOrder   Int                  @default(0)
+
+  values MenuOptionValue[]
+
+  @@map("menu_options")
+}
+
+enum MenuOptionDisplayType {
+  SELECT
+  RADIO
+  CHECKBOX
+  QUANTITY
+}
+
+model MenuOptionValue {
+  id              String     @id @default(cuid())
+  menuOptionId    String
+  menuOption      MenuOption @relation(fields: [menuOptionId], references: [id], onDelete: Cascade)
+  name            String
+  priceModifier   Float      @default(0)
+  isDefault       Boolean    @default(false)
+  sortOrder       Int        @default(0)
+
+  orderItemOptions OrderItemOption[]
+
+  @@map("menu_option_values")
+}
+
+model Mealtime {
+  id         String   @id @default(cuid())
+  name       String
+  startTime  String   // "06:00"
+  endTime    String   // "11:00"
+  days       Int[]    // [0,1,2,3,4,5,6] days of week
+  isActive   Boolean  @default(true)
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  menuItems MenuItemMealtime[]
+
+  @@map("mealtimes")
+}
+
+model MenuItemMealtime {
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  mealtimeId String
+  mealtime   Mealtime @relation(fields: [mealtimeId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, mealtimeId])
+  @@map("menu_item_mealtimes")
+}
+
+model Allergen {
+  id   String @id @default(cuid())
+  name String @unique
+
+  menuItems MenuItemAllergen[]
+
+  @@map("allergens")
+}
+
+model MenuItemAllergen {
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  allergenId String
+  allergen   Allergen @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, allergenId])
+  @@map("menu_item_allergens")
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  PICKED_UP
+  CANCELLED
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  customerId  String?
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  locationId  String
+  location    Location    @relation(fields: [locationId], references: [id])
+  addressId   String?
+  address     Address?    @relation(fields: [addressId], references: [id])
+
+  orderType   OrderType
+  status      OrderStatus @default(PENDING)
+
+  // Totals
+  subtotal     Float
+  deliveryFee  Float    @default(0)
+  tax          Float    @default(0)
+  discount     Float    @default(0)
+  tip          Float    @default(0)
+  total        Float
+
+  // Payment lifecycle (denormalized snapshot from Payments)
+  paymentStatus String  @default("UNPAID")
+  paymentMethod PaymentMethod?
+
+  // Scheduling
+  scheduledAt  DateTime?
+  comment      String?
+
+  // Coupon
+  couponId    String?
+  coupon      Coupon? @relation(fields: [couponId], references: [id])
+
+  // Staff assignment
+  assignedToId String?
+  assignedTo   User?  @relation("AssignedStaff", fields: [assignedToId], references: [id])
+
+  // Table ordering (QR)
+  tableId        String?
+  table          Table?   @relation(fields: [tableId], references: [id])
+  tableSessionId String?
+  tableSession   TableSession? @relation(fields: [tableSessionId], references: [id])
+
+  // Guest info (if no customer account)
+  guestName   String?
+  guestEmail  String?
+  guestPhone  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items               OrderItem[]
+  payments            Payment[]
+  reviews             Review[]
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  name       String   // snapshot at time of order
+  quantity   Int
+  unitPrice  Float
+  subtotal   Float
+  comment    String?
+
+  options OrderItemOption[]
+
+  @@map("order_items")
+}
+
+model OrderItemOption {
+  id                String          @id @default(cuid())
+  orderItemId       String
+  orderItem         OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  menuOptionValueId String
+  menuOptionValue   MenuOptionValue @relation(fields: [menuOptionValueId], references: [id])
+  name              String // snapshot
+  value             String // snapshot
+  priceModifier     Float
+
+  @@map("order_item_options")
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+enum PaymentMethod {
+  CASH
+  CARD
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  AWAITING_CASH_PAYMENT
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Float
+  currency      String        @default("USD")
+  transactionId String?
+  paidAt        DateTime?
+  confirmedById String?
+  confirmedBy   User?         @relation("ConfirmedByStaff", fields: [confirmedById], references: [id])
+  staffNote     String?
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([orderId, transactionId])
+  @@map("payments")
+}
+
+// ============================================================
+// RESERVATIONS & TABLES
+// ============================================================
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  SEATED
+  COMPLETED
+  CANCELLED
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  ORDERING
+  WAITING_FOOD
+  WAITING_WAITER
+  READY_TO_PAY
+  CLOSED
+}
+
+model Table {
+  id         String  @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  name       String
+  capacity   Int
+  isActive   Boolean @default(true)
+  qrToken    String  @unique
+  status     TableStatus @default(AVAILABLE)
+
+  reservations    Reservation[]
+  sessions        TableSession[]
+  orders          Order[]
+  callWaiterRequests CallWaiterRequest[]
+
+  @@unique([locationId, name])
+  @@map("tables")
+}
+
+model TableSession {
+  id          String   @id @default(cuid())
+  tableId     String
+  table       Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  sessionToken String @unique
+  cart        Json?
+  status      TableStatus @default(ORDERING)
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders Order[]
+
+  @@map("table_sessions")
+}
+
+model CallWaiterRequest {
+  id        String   @id @default(cuid())
+  tableId   String
+  table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  status    CallWaiterStatus @default(PENDING)
+  note      String?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+
+  @@map("call_waiter_requests")
+}
+
+enum CallWaiterStatus {
+  PENDING
+  ACCEPTED
+  COMPLETED
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  customerId String
+  customer   Customer          @relation(fields: [customerId], references: [id])
+  locationId String
+  location   Location          @relation(fields: [locationId], references: [id])
+  tableId    String?
+  table      Table?            @relation(fields: [tableId], references: [id])
+  date       DateTime          @db.Date
+  time       String            // "19:00"
+  partySize  Int
+  status     ReservationStatus @default(PENDING)
+  comment    String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@map("reservations")
+}
+
+// ============================================================
+// MARKETING
+// ============================================================
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+  FREE_DELIVERY
+}
+
+model Coupon {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  type        CouponType
+  value       Float      // percentage or fixed amount
+  minOrder    Float      @default(0)
+  maxDiscount Float?     // cap for percentage coupons
+  usageLimit  Int?       // total uses allowed
+  usageCount  Int        @default(0)
+  perCustomer Int        @default(1) // uses per customer
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  orders Order[]
+
+  @@map("coupons")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id])
+  rating     Int      // 1-5
+  comment    String?
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("reviews")
+}
+
+// ============================================================
+// LOYALTY
+// ============================================================
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+model LoyaltyTransaction {
+  id          String                 @id @default(cuid())
+  customerId  String
+  customer    Customer               @relation(fields: [customerId], references: [id])
+  type        LoyaltyTransactionType
+  points      Int
+  description String?
+  orderId     String?
+  order       Order?                 @relation(fields: [orderId], references: [id])
+  createdAt   DateTime               @default(now())
+
+  @@map("loyalty_transactions")
+}
+
+// ============================================================
+// SITE SETTINGS
+// ============================================================
+
+model SiteSettings {
+  id              String   @id @default("default")
+  siteName        String   @default("KitchenAsty")
+  siteTitle       String   @default("KitchenAsty - Order Online")
+  favicon         String?
+  logo            String?
+  colorPrimary    String   @default("#ea580c")
+  colorSecondary  String   @default("#9333ea")
+  darkMode        String   @default("light") // "light" | "dark" | "system"
+  storefrontTemplate String @default("classic")
+  heroSection     Json?    // { title, subtitle, ctaPrimaryText, ctaPrimaryLink, ctaSecondaryText, ctaSecondaryLink, backgroundImage }
+  featuresSection Json?    // [{ icon, title, description }]
+  ctaSection      Json?    // { title, description, buttonText, buttonLink }
+
+  // Operational settings
+  generalSettings     Json?  // { timezone, distanceUnit, googleMapsApiKey, defaultCurrency, currencySymbol, currencyPosition, contactEmail, contactPhone }
+  orderSettings       Json?  // { enabled, minOrderDelivery, minOrderPickup, deliveryLeadTime, pickupLeadTime, enableFutureOrdering, enableTipping, tipOptions, taxRate }
+  reservationSettings Json?  // { enabled, timeInterval, stayTime, maxAdvanceBookingDays, minCancellationNoticeHours, autoConfirm }
+  mailSettings        Json?  // { smtpHost, smtpPort, smtpUser, smtpPass, senderName, senderEmail, encryption }
+  paymentSettings     Json?  // { stripeEnabled, stripePublishableKey, stripeSecretKey, stripeWebhookSecret, paypalEnabled, paypalClientId, paypalClientSecret, paypalSandbox, cashEnabled }
+  reviewSettings      Json?  // { enabled, requireOrder, autoApprove, minimumRating }
+  advancedSettings    Json?  // { maintenanceMode, maintenanceMessage, enableRateLimiting }
+  developerSettings   Json?  // { googleMapsApiKey, analyticsId, sentryDsn, ... } — DEVELOPER only, hidden from admins
+
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("site_settings")
+}
+
+enum GalleryCategory {
+  FOOD
+  INTERIOR
+  GARDEN
+  EVENTS
+}
+
+model GalleryImage {
+  id        String          @id @default(cuid())
+  url       String
+  alt       String
+  category  GalleryCategory
+  sortOrder Int             @default(0)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([category, sortOrder])
+  @@map("gallery_images")
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  url          String
+  mimeType     String
+  size         Int
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("media_assets")
+}
+
+// ============================================================
+// AUTOMATION
+// ============================================================
+
+// ============================================================
+// LEGAL & CONSENT
+// ============================================================
+
+model LegalPage {
+  id        String   @id @default(cuid())
+  slug      String   @unique        // "privacy-policy" | "impressum"
+  title     String
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  @@map("legal_pages")
+}
+
+model CookieCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique       // "essential" | "analytics" | "marketing"
+  label       String
+  description String
+  isRequired  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  consents CookieConsent[]
+  @@map("cookie_categories")
+}
+
+model CookieConsent {
+  id               String         @id @default(cuid())
+  customerId       String?
+  customer         Customer?      @relation(fields: [customerId], references: [id])
+  cookieCategoryId String
+  cookieCategory   CookieCategory @relation(fields: [cookieCategoryId], references: [id], onDelete: Cascade)
+  accepted         Boolean
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime       @default(now())
+  @@map("cookie_consents")
+}
+
+model InviteToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  email     String
+  role      Role      @default(STAFF)
+  invitedBy String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  @@map("invite_tokens")
+}
+
+model AutomationRule {
+  id         String   @id @default(cuid())
+  name       String
+  event      String   // 'order.created', 'order.statusChanged', 'reservation.created', 'review.submitted'
+  conditions Json?    // e.g. { "status": "CONFIRMED" }
+  actions    Json     // [{ "type": "email", "template": "orderConfirmation", "to": "customer" }]
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("automation_rules")
+}
+
+// ============================================================
+// OBSERVABILITY
+// ============================================================
+
+model ApiMetric {
+  id           String   @id @default(cuid())
+  method       String
+  path         String
+  statusCode   Int
+  responseTime Int      // ms
+  requestId    String?
+  userId       String?
+  userType     String?  // 'staff' | 'customer'
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path, method])
+  @@map("api_metrics")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  userEmail String
+  action    String   // 'create' | 'update' | 'delete'
+  entity    String   // 'MenuItem', 'Order', etc.
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  requestId String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([entity])
+  @@map("audit_logs")
+}

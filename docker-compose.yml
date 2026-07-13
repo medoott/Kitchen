@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kitchenasty-db
+    environment:
+      POSTGRES_USER: kitchenasty
+      POSTGRES_PASSWORD: kitchenasty
+      POSTGRES_DB: kitchenasty
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchenasty"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    container_name: kitchenasty-server
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://kitchenasty:kitchenasty@postgres:5432/kitchenasty
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      JWT_SECRET: change-this-to-a-random-secret
+      JWT_EXPIRES_IN: 7d
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: packages/admin/Dockerfile
+    container_name: kitchenasty-admin
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+  storefront:
+    build:
+      context: .
+      dockerfile: packages/storefront/Dockerfile
+    container_name: kitchenasty-storefront
+    ports:
+      - "5174:80"
+    depends_on:
+      - server
+
+  docs:
+    build:
+      context: .
+      dockerfile: packages/docs/Dockerfile
+    container_name: kitchenasty-docs
+    ports:
+      - "5175:80"
+
+volumes:
+  pgdata:

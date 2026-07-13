@@ -1,0 +1,186 @@
+import { useState, useEffect } from 'react';
+
+interface ConsentRecord {
+  id: string;
+  accepted: boolean;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  customer: { id: string; name: string; email: string } | null;
+  cookieCategory: { id: string; name: string; label: string };
+}
+
+interface CategoryStat {
+  categoryId: string;
+  categoryName: string;
+  total: number;
+  accepted: number;
+  rejected: number;
+  acceptanceRate: number;
+}
+
+interface Stats {
+  totalConsents: number;
+  categories: CategoryStat[];
+}
+
+export default function ConsentLog() {
+  const [consents, setConsents] = useState<ConsentRecord[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const token = localStorage.getItem('token') || '';
+
+  useEffect(() => {
+    fetch('/api/consent/stats', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) setStats(res.data);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: '20' });
+    if (categoryFilter) params.set('categoryId', categoryFilter);
+
+    fetch(`/api/consent?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          setConsents(res.data);
+          setTotalPages(res.pagination.totalPages);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [page, categoryFilter, token]);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Consent Log</h1>
+
+      {/* Stats cards */}
+      {stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <p className="text-xs text-gray-500 uppercase">Total Consents</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalConsents}</p>
+          </div>
+          {stats.categories.map((cat) => (
+            <div key={cat.categoryId} className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-xs text-gray-500 uppercase">{cat.categoryName}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{cat.acceptanceRate}%</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {cat.accepted} accepted / {cat.rejected} rejected
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="mb-4">
+        <select
+          value={categoryFilter}
+          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+        >
+          <option value="">All Categories</option>
+          {stats?.categories.map((cat) => (
+            <option key={cat.categoryId} value={cat.categoryId}>
+              {cat.categoryName}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+            <tr>
+              <th className="px-6 py-3 text-left">Customer</th>
+              <th className="px-6 py-3 text-left">Category</th>
+              <th className="px-6 py-3 text-center">Accepted</th>
+              <th className="px-6 py-3 text-left">IP Address</th>
+              <th className="px-6 py-3 text-left">Date</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td>
+              </tr>
+            ) : consents.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No consent records.</td>
+              </tr>
+            ) : (
+              consents.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    {c.customer ? (
+                      <div>
+                        <span className="font-medium text-gray-900">{c.customer.name}</span>
+                        <span className="block text-xs text-gray-400">{c.customer.email}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Anonymous</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-gray-700">{c.cookieCategory.label}</td>
+                  <td className="px-6 py-4 text-center">
+                    {c.accepted ? (
+                      <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                        Yes
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                        No
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-gray-500 text-xs font-mono">{c.ipAddress || '-'}</td>
+                  <td className="px-6 py-4 text-gray-500">
+                    {new Date(c.createdAt).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="px-3 py-1 text-sm text-gray-600">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

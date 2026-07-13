@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx -w packages/server prisma generate --schema ../../prisma/schema.prisma
+      - name: TypeScript check (shared)
+        run: npx -w packages/shared tsc --noEmit
+      - name: TypeScript check (server)
+        run: npx -w packages/server tsc --noEmit
+      - name: TypeScript check (admin)
+        run: npx -w packages/admin tsc --noEmit
+      - name: TypeScript check (storefront)
+        run: npx -w packages/storefront tsc --noEmit
+      - name: TypeScript check (mobile)
+        run: npx -w packages/mobile tsc --noEmit
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx -w packages/server prisma generate --schema ../../prisma/schema.prisma
+      - name: Run shared tests
+        run: npx -w packages/shared vitest run
+      - name: Run server unit tests
+        run: npx -w packages/server vitest run src/__tests__/unit
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx -w packages/server prisma generate --schema ../../prisma/schema.prisma
+      - name: Run server integration tests
+        run: npx -w packages/server vitest run src/__tests__/integration
+
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kitchenasty
+          POSTGRES_PASSWORD: kitchenasty
+          POSTGRES_DB: kitchenasty
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kitchenasty"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://kitchenasty:kitchenasty@localhost:5432/kitchenasty
+      JWT_SECRET: test-secret
+      PORT: 3000
+      NODE_ENV: test
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx -w packages/server prisma generate --schema ../../prisma/schema.prisma
+      - name: Push schema to database
+        run: npx -w packages/server prisma db push --schema ../../prisma/schema.prisma --skip-generate
+      - name: Seed database
+        run: npx tsx prisma/seed.ts
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      - name: Run E2E tests
+        run: npx playwright test
+        env:
+          CI: true
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run npm audit
+        run: npm audit --audit-level=high || true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx -w packages/server prisma generate --schema ../../prisma/schema.prisma
+      - name: Build shared
+        run: npm run build -w packages/shared
+      - name: Build server
+        run: npm run build -w packages/server
+      - name: Build admin
+        run: npm run build -w packages/admin
+      - name: Build storefront
+        run: npm run build -w packages/storefront
+      - name: Build docs
+        run: npm run build -w packages/docs
+      - name: Upload admin build
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: packages/admin/dist/
+          retention-days: 7
+      - name: Upload storefront build
+        uses: actions/upload-artifact@v4
+        with:
+          name: storefront-dist
+          path: packages/storefront/dist/
+          retention-days: 7
